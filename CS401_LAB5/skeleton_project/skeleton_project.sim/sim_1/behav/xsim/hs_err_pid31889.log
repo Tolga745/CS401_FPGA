@@ -1,0 +1,8 @@
+#
+# An unexpected error has occurred (11)
+#
+Stack:
+/opt/vivado23/Vivado/2023.1/tps/lnx64/jre17.0.3_7/lib//server/libjvm.so(+0xd7d55f) [0x7bcba3f7d55f]
+/opt/vivado23/Vivado/2023.1/tps/lnx64/jre17.0.3_7/lib//server/libjvm.so(JVM_handle_linux_signal+0x23d) [0x7bcba3f7e03d]
+/lib/x86_64-linux-gnu/libc.so.6(+0x42520) [0x7bcbe6242520]
+[0xb143c648]
