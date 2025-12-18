@@ -1,14 +1,14 @@
 #-----------------------------------------------------------
 # Vivado v2023.1 (64-bit)
-# SW Build 3865809 on Sun May  7 15:04:56 MDT 2023
+# SW Build 3865809 on Sun May  7 15:05:29 MDT 2023
 # IP Build 3864474 on Sun May  7 20:36:21 MDT 2023
 # SharedData Build 3865790 on Sun May 07 13:33:03 MDT 2023
-# Start of session at: Sat Dec 13 22:24:13 2025
-# Process ID: 300054
-# Current directory: /home/ekin/Downloads/skeleton_project/skeleton_project.runs/impl_1
-# Command line: vivado -log top.vdi -applog -product Vivado -messageDb vivado.pb -mode batch -source top.tcl -notrace
-# Log file: /home/ekin/Downloads/skeleton_project/skeleton_project.runs/impl_1/top.vdi
-# Journal file: /home/ekin/Downloads/skeleton_project/skeleton_project.runs/impl_1/vivado.jou
-# Running On: ekin-MS-1038, OS: Linux, CPU Frequency: 800.000 MHz, CPU Physical cores: 6, Host memory: 67335 MB
+# Start of session at: Thu Dec 18 23:26:47 2025
+# Process ID: 16856
+# Current directory: C:/Users/tolga/CS401_FPGA/CS401_LAB5/skeleton_project/skeleton_project.runs/impl_1
+# Command line: vivado.exe -log top.vdi -applog -product Vivado -messageDb vivado.pb -mode batch -source top.tcl -notrace
+# Log file: C:/Users/tolga/CS401_FPGA/CS401_LAB5/skeleton_project/skeleton_project.runs/impl_1/top.vdi
+# Journal file: C:/Users/tolga/CS401_FPGA/CS401_LAB5/skeleton_project/skeleton_project.runs/impl_1\vivado.jou
+# Running On: LAPTOP-0LB05RCG, OS: Windows, CPU Frequency: 3793 MHz, CPU Physical cores: 16, Host memory: 16390 MB
 #-----------------------------------------------------------
 source top.tcl -notrace

@@ -164,73 +164,175 @@ module datapath (input  logic clk, reset,
 	// Here, define the wires that are needed inside this pipelined datapath module
 	// ********************************************************************
   
-  	//* We have defined a few wires for you
-    logic [31:0] PcSrcA, PcSrcB, PcBranchD, PcPlus4F;	
-  	logic [31:0] SignImmD, ShiftedImmD;
-  	logic [31:0] ResultW;
-  	logic [4:0] WriteRegW;
-  	logic [31:0] RD1, RD2;
-  	logic [31:0] SrcBE;
-  	logic [31:0] ReadDataM;
-  	logic [31:0] PCF;
+  	// Fetch Stage Signals
+    logic [31:0] PCF, PcPlus4F, PcSrcA, PcSrcB;
+    
+    // Decode Stage Signals
+    logic [31:0] PcBranchD, PcPlus4D; 
+    logic [31:0] SignImmD, ShiftedImmD;
+    logic [31:0] RD1, RD2;
+    
+    // Execute Stage Signals
+    logic [31:0] RsDataE, RtDataE, SignImmE;
+    logic [4:0]  RsE, RtE, RdE, WriteRegE;
+    logic RegWriteE, MemToRegE, MemWriteE, ALUSrcE, RegDstE;
+    logic [2:0] ALUControlE;
+    logic SyscallE, SyscallInputE, DoneE;
+    logic [31:0] SrcAE, SrcBE, WriteDataE_fwd; // Forwarded values
+    logic [31:0] ALUResultE, FinalALUOutE;     // ALU results
+    logic [31:0] SyscallDataE;                 // Data from Syscall Handler
+    
+    // Memory Stage Signals
+    logic RegWriteM, MemToRegM, MemWriteM;
+    logic [31:0] ALUOutM, WriteDataM, ReadDataM;
+    logic [4:0]  WriteRegM;
+    
+    // Writeback Stage Signals
+    logic RegWriteW, MemToRegW;
+    logic [31:0] ALUOutW, ReadDataW, ResultW;
+    logic [4:0]  WriteRegW;
     
     /////////////////////////////////////////////////// Fetch stage //////////////////////////////////////////////////////////////////////////
-    (* MARK_DEBUG = "TRUE" *) logic StallF, StallD, StallE; 
+    (* MARK_DEBUG = "TRUE" *) logic StallF, StallD, StallE, FlushE; 
   	// Replace with PipeWtoF
-    flopr #(32) pcreg(clk, reset, PC, PCF);
-  
-  
+    PipeWtoF pcreg(
+        .PC(PC), 
+        .EN(~StallF),   
+        .clk(clk), 
+        .reset(reset), 
+        .PCF(PCF)
+    );
+
+    // PC Mux Logic
     assign PcPlus4F = PCF + 4;
     assign PcSrcB = PcBranchD;
-	assign PcSrcA = PcPlus4F;
-  	mux2 #(32) pc_mux(PcSrcA, PcSrcB, PcSrcD, PC);
-  	
+    assign PcSrcA = PcPlus4F;
+    mux2 #(32) pc_mux(PcSrcA, PcSrcB, PcSrcD, PC);
 
+    // Instruction Memory
     imem im1(PCF[7:2], instrF);
-    
-  	// Replace the code below with PipeFtoD
-  	assign instrD = instrF;
+
+    // Pipeline Register: Fetch -> Decode
+    // Enable = ~StallD, Clear = PcSrcD (Flush on branch taken)
+    PipeFtoD pfd(instrF, PcPlus4F, ~StallD, PcSrcD, clk, reset, instrD, PcPlus4D);
    
   	/////////////////////////////////////////////////// Decode stage //////////////////////////////////////////////////////////////////////////
-  	regfile rf(clk, reset, RegWriteW, instrD[25:21], instrD[20:16], WriteRegW, ResultW, RD1, RD2);
-  	signext se(instrD[15:0], SignImmD);
-  	
-  	sl2 shiftimm(SignImmD, ShiftedImmD);
-  	adder branchadd(PcPlus4D, ShiftedImmD, PcBranchD);  // PcPlus4F should be PcPlus4D according to the figure
-  	assign PcSrcD = BranchD & (RD1 == RD2);
+  	// Register File
+    regfile rf(clk, reset, RegWriteW, instrD[25:21], instrD[20:16], WriteRegW, ResultW, RD1, RD2);
+    
+    // Sign Extension & Branch Logic
+    signext se(instrD[15:0], SignImmD);
+    sl2 shiftimm(SignImmD, ShiftedImmD);
+    adder branchadd(PcPlus4D, ShiftedImmD, PcBranchD); 
+    
+    // Branch Decision
+    assign PcSrcD = BranchD & (RD1 == RD2);
 
-   
-  	(* MARK_DEBUG = "TRUE" *) logic FlushE;
+    // Pipeline Register: Decode -> Execute
+    PipeDtoE pde(
+        ~StallE, // Enable
+        RD1, RD2, SignImmD,
+        instrD[25:21], instrD[20:16], instrD[15:11],
+        RegWriteD, MemToRegD, MemWriteD, ALUSrcD, RegDstD,
+        ALUControlD,
+        SyscallD, SyscallInputD, DoneD,
+        FlushE, clk, reset,
+        RsDataE, RtDataE, SignImmE,
+        RsE, RtE, RdE, 
+        RegWriteE, MemToRegE, MemWriteE, ALUSrcE, RegDstE,
+        ALUControlE,
+        SyscallE, SyscallInputE, DoneE
+    );
   
   	// Instantiate PipeDtoE here
   	
   	/////////////////////////////////////////////////// Execute stage //////////////////////////////////////////////////////////////////////////
-    mux2 #(32) srcBMux(RD2, SignImmD, ALUSrcD, SrcBE);
-  	alu alu(RD1, SrcBE, ALUControlD, ALUOutE);
-  	mux2 #(5) wrMux(instrD[20:16], instrD[15:11], RegDstD, WriteRegW);
+    // Forwarding Multiplexers (3-way)
+    // Selects: 00=RegFile, 01=Writeback Stage, 10=Memory Stage
+    
+    // Forwarding Mux for Source A
+    always_comb begin
+        case (ForwardAE)
+            2'b00: SrcAE = RsDataE;
+            2'b01: SrcAE = ResultW;
+            2'b10: SrcAE = ALUOutM;
+            default: SrcAE = RsDataE;
+        endcase
+    end
 
-  	// Replace the code below with PipeEtoM
-  	assign WriteDataE = RD2;
+    // Forwarding Mux for WriteData (Source B before Immediate Mux)
+    always_comb begin
+        case (ForwardBE)
+            2'b00: WriteDataE_fwd = RtDataE;
+            2'b01: WriteDataE_fwd = ResultW;
+            2'b10: WriteDataE_fwd = ALUOutM;
+            default: WriteDataE_fwd = RtDataE;
+        endcase
+    end
+
+    // ALU Source B Mux (Immediate Selection)
+    mux2 #(32) srcBMux(WriteDataE_fwd, SignImmE, ALUSrcE, SrcBE);
+
+    // ALU
+    alu alu(SrcAE, SrcBE, ALUControlE, ALUResultE);
     
+    // Write Register Mux (Rt vs Rd)
+    mux2 #(5) wrMux(RtE, RdE, RegDstE, WriteRegE);
+
+    // Custom Syscall Handler
+    // SrcAE contains the value of $rs (for Output syscall)
+    // SyscallDataE receives value for $rt (for Input syscall)
+    syscall_handler sh(SyscallE, SyscallInputE, system_input_given, 
+                       SrcAE, sys_in_data, system_input_need, 
+                       SyscallDataE, sys_out_data);
+                       
+    assign done = DoneE; // Connect Done signal to output
+
+    // Select Final Result (ALU Result vs Syscall Input)
+    assign FinalALUOutE = (SyscallInputE) ? SyscallDataE : ALUResultE;
     
-    //logic [31:0] syscall_handler_out;
-  	//syscall_handler sh(SyscallE, SyscallInputE, system_input_given, SrcAE, sys_in_data, system_input_need, syscall_handler_out, sys_out_data);
-  	
-  	// Instantiate PipeMtoW
+    // Assign WriteDataE output 
+    assign WriteDataE = WriteDataE_fwd;
+    assign ALUOutE = FinalALUOutE;
+
+    // Pipeline Register: Execute -> Memory
+    PipeEtoM pem(clk, reset,
+                 RegWriteE, MemToRegE, MemWriteE,
+                 FinalALUOutE, WriteDataE_fwd, 
+                 WriteRegE,
+                 RegWriteM, MemToRegM, MemWriteM,
+                 ALUOutM, WriteDataM,
+                 WriteRegM);
 
   	/////////////////////////////////////////////////// Memory stage //////////////////////////////////////////////////////////////////////////
-  	dmem DM(clk, MemWriteM, ALUOutM, WriteDataM, ReadDataM);
+  	// Data Memory
+    dmem DM(clk, MemWriteM, ALUOutM, WriteDataM, ReadDataM);
 
-  	// Instantiate PipeMtoW
+    // Pipeline Register: Memory -> Writeback
+    PipeMtoW pmw(clk, reset,
+                 RegWriteM, MemToRegM,
+                 ALUOutM, ReadDataM,
+                 WriteRegM,
+                 RegWriteW, MemToRegW,
+                 ALUOutW, ReadDataW,
+                 WriteRegW);
   
   	/////////////////////////////////////////////////// Writeback stage //////////////////////////////////////////////////////////////////////////
-  	mux2 #(32) wbmux(ALUOutE, ReadDataM, MemToRegD, ResultW);
+  	// Writeback Mux (ALU Result vs Memory Data)
+    mux2 #(32) wbmux(ALUOutW, ReadDataW, MemToRegW, ResultW);
   	
-  	// Replace the code below with HazardUnit
-  	assign ForwardAE = 2'b0;
-  	assign ForwardBE = 2'b0;
-  	assign ForwardAD = 0;
-  	assign ForwardBD = 0;
+  	HazardUnit hu(
+        RegWriteW, BranchD,            
+        WriteRegW, WriteRegE,
+        RegWriteM, MemToRegM,
+        WriteRegM,
+        RegWriteE, MemToRegE,
+        RsE, RtE,
+        instrD[25:21], instrD[20:16],
+        system_input_need,
+        ForwardAE, ForwardBE,
+        FlushE, StallE, StallD, StallF, ForwardAD, ForwardBD
+    );
   	
   	
 endmodule
@@ -260,6 +362,17 @@ endmodule
 module PipeFtoD(input logic[31:0] instr, PcPlus4F,
                 input logic EN, clear, clk, reset,  
                 output logic[31:0] instrD, PcPlus4D);
+    
+    always_ff @(posedge clk, posedge reset) begin
+        if (reset || clear) begin
+            instrD   <= 0;
+            PcPlus4D <= 0;
+        end
+        else if (EN) begin
+            instrD   <= instr;
+            PcPlus4D <= PcPlus4F;
+        end
+    end
 
 endmodule
 
@@ -292,9 +405,9 @@ module PipeDtoE(input EN,
         always_ff @(posedge clk, posedge reset)
           if(reset || clear)
                 begin
-                // Control signals
-                RegWriteE <= 0;
+                // Control signals                
                 MemtoRegE <= 0;
+                RegWriteE <= 0;
                 MemWriteE <= 0;
                 ALUControlE <= 0;
                 ALUSrcE <= 0;
@@ -332,36 +445,47 @@ module PipeDtoE(input EN,
                 RdE <= RdD;
                 SignImmE <= SignImmD;
                 end
-            else 
-                begin
-                // Control signals
-                RegWriteE <= RegWriteE;
-                MemtoRegE <= MemtoRegE;
-                MemWriteE <= MemWriteE;
-                ALUControlE <= ALUControlE;
-                ALUSrcE <= ALUSrcE;
-                RegDstE <= RegDstE;
-                SyscallE <= SyscallE;
-                SyscallInputE <= SyscallInputE;
-                DoneE <= DoneE;
+            
+
+endmodule
+
+module PipeEtoM(input logic clk, reset,
+                input logic RegWriteE, MemtoRegE, MemWriteE,
+                input logic [31:0] ALUOutE, WriteDataE,
+                input logic [4:0] WriteRegE,
+                output logic RegWriteM, MemtoRegM, MemWriteM,
+                output logic [31:0] ALUOutM, WriteDataM,
+                output logic [4:0] WriteRegM);
                 
-                // Data
-                RsData <= RsData;
-                RtData <= RtData;
-                RsE <= RsE;
-                RtE <= RtE;
-                RdE <= RdE;
-                SignImmE <= SignImmE;
-                end
+    always_ff @(posedge clk, posedge reset) begin
+        if (reset) begin
+            RegWriteM <= 0; MemtoRegM <= 0; MemWriteM <= 0;
+            ALUOutM <= 0; WriteDataM <= 0; WriteRegM <= 0;
+        end else begin
+            RegWriteM <= RegWriteE; MemtoRegM <= MemtoRegE; MemWriteM <= MemWriteE;
+            ALUOutM <= ALUOutE; WriteDataM <= WriteDataE; WriteRegM <= WriteRegE;
+        end
+    end
 
 endmodule
 
-module PipeEtoM();
+module PipeMtoW(input logic clk, reset,
+                input logic RegWriteM, MemtoRegM,
+                input logic [31:0] ALUOutM, ReadDataM,
+                input logic [4:0] WriteRegM,
+                output logic RegWriteW, MemtoRegW,
+                output logic [31:0] ALUOutW, ReadDataW,
+                output logic [4:0] WriteRegW);
 
-endmodule
-
-module PipeMtoW();
-
+    always_ff @(posedge clk, posedge reset) begin
+        if (reset) begin
+            RegWriteW <= 0; MemtoRegW <= 0;
+            ALUOutW <= 0; ReadDataW <= 0; WriteRegW <= 0;
+        end else begin
+            RegWriteW <= RegWriteM; MemtoRegW <= MemtoRegM;
+            ALUOutW <= ALUOutM; ReadDataW <= ReadDataM; WriteRegW <= WriteRegM;
+        end
+    end
 		
 endmodule
 
@@ -377,10 +501,49 @@ module HazardUnit( input logic RegWriteW, BranchD,
                 output logic FlushE, StallE, StallD, StallF, ForwardAD, ForwardBD
 ); // Add or remove input-outputs if necessary
 
-    logic lwstall, branchstall;
-    
+    logic lwstall, lwstall_prev;
+
     always_comb begin
-        StallE = input_need;
+        // --- Forwarding Logic (Execute Stage) ---
+        // Forward A: 10 from Memory (priority), 01 from WB
+        if (RegWriteM && (WriteRegM != 0) && (WriteRegM == rsE))
+            ForwardAE = 2'b10;
+        else if (RegWriteW && (WriteRegW != 0) && (WriteRegW == rsE))
+            ForwardAE = 2'b01;
+        else
+            ForwardAE = 2'b00;
+
+        // Forward B: 10 from Memory (priority), 01 from WB
+        if (RegWriteM && (WriteRegM != 0) && (WriteRegM == rtE))
+            ForwardBE = 2'b10;
+        else if (RegWriteW && (WriteRegW != 0) && (WriteRegW == rtE))
+            ForwardBE = 2'b01;
+        else
+            ForwardBE = 2'b00;
+
+        // --- Stall Logic ---
+        
+        // Load-Use Hazard Detection
+        // Occurs if instruction in Decode needs data from a Load in Execute
+        lwstall = MemtoRegE && RegWriteE &&  
+  ((rtE == rsD) || (rtE == rtD)) &&
+  (rtE != 0);
+
+        // Stall Signals
+        // We stall F and D if there is a Load-Use hazard OR if waiting for Input
+        StallF = lwstall || input_need;
+        StallD = lwstall || input_need;
+        StallE = input_need; // Only freeze Execute stage for input wait
+        
+
+        // Flush Execute
+        // If we stall Decode for Load-Use, we must insert a bubble (Flush) into Execute.
+        // But if it's an Input wait, we don't flush, we just freeze.
+        FlushE = lwstall; 
+        
+        // Decode Forwarding (Optional, checks if Branch operand depends on MEM result)
+        ForwardAD = (RegWriteM && (WriteRegM != 0) && (WriteRegM == rsD));
+        ForwardBD = (RegWriteM && (WriteRegM != 0) && (WriteRegM == rtD));
     end
 
 endmodule

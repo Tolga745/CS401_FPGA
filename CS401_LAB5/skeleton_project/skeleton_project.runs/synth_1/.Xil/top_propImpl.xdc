@@ -1,4 +1,4 @@
-set_property SRC_FILE_INFO {cfile:/home/ekin/Downloads/skeleton_project/skeleton_project.srcs/constrs_1/new/constraints.xdc rfile:../../../skeleton_project.srcs/constrs_1/new/constraints.xdc id:1} [current_design]
+set_property SRC_FILE_INFO {cfile:C:/Users/tolga/CS401_FPGA/CS401_LAB5/skeleton_project/skeleton_project.srcs/constrs_1/new/constraints.xdc rfile:../../../skeleton_project.srcs/constrs_1/new/constraints.xdc id:1} [current_design]
 set_property src_info {type:XDC file:1 line:7 export:INPUT save:INPUT read:READ} [current_design]
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports clk]
 set_property src_info {type:XDC file:1 line:13 export:INPUT save:INPUT read:READ} [current_design]

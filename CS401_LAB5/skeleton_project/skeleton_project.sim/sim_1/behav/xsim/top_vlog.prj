@@ -1,7 +1,9 @@
 # compile verilog/system verilog design source files
 sv xil_defaultlib  \
+"../../../../skeleton_project.srcs/sources_1/new/debouncer.sv" \
+"../../../../skeleton_project.srcs/sources_1/new/display_controller.sv" \
 "../../../../skeleton_project.srcs/sources_1/new/mips.sv" \
-"../../../../skeleton_project.srcs/sim_1/new/tb_mips.sv" \
+"../../../../skeleton_project.srcs/sources_1/new/top.sv" \
 
 # compile glbl module
 verilog xil_defaultlib "glbl.v"

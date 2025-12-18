@@ -7,10 +7,14 @@
 # Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
 # 
 
+echo "This script was generated under a different operating system."
+echo "Please update the PATH and LD_LIBRARY_PATH variables below, before executing this script"
+exit
+
 if [ -z "$PATH" ]; then
-  PATH=/opt/vivado23/Vivado/2023.1/ids_lite/ISE/bin/lin64:/opt/vivado23/Vivado/2023.1/bin
+  PATH=C:/Xilinx/Vivado/2023.1/ids_lite/ISE/bin/nt64;C:/Xilinx/Vivado/2023.1/ids_lite/ISE/lib/nt64:C:/Xilinx/Vivado/2023.1/bin
 else
-  PATH=/opt/vivado23/Vivado/2023.1/ids_lite/ISE/bin/lin64:/opt/vivado23/Vivado/2023.1/bin:$PATH
+  PATH=C:/Xilinx/Vivado/2023.1/ids_lite/ISE/bin/nt64;C:/Xilinx/Vivado/2023.1/ids_lite/ISE/lib/nt64:C:/Xilinx/Vivado/2023.1/bin:$PATH
 fi
 export PATH
 
@@ -21,7 +25,7 @@ else
 fi
 export LD_LIBRARY_PATH
 
-HD_PWD='/home/ekin/Downloads/skeleton_project/skeleton_project.runs/impl_1'
+HD_PWD='C:/Users/tolga/CS401_FPGA/CS401_LAB5/skeleton_project/skeleton_project.runs/impl_1'
 cd "$HD_PWD"
 
 HD_LOG=runme.log
